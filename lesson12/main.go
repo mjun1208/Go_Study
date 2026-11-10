@@ -12,28 +12,32 @@ func main() {
 	defer cancel()
 
 	var wg sync.WaitGroup
-	wg.Add(1)
+	wg.Add(3)
 
-	go func() {
-		defer wg.Done()
+	for i := 1; i <= 3; i++ {
+		go func(id int) {
+			defer wg.Done()
 
-		for {
-			select {
-			case <-ctx.Done():
-				fmt.Println("Worker 終了")
-				return
+			ticker := time.NewTicker(time.Second)
+			defer ticker.Stop()
 
-			default:
-				fmt.Println("Worker 実行中")
-				time.Sleep(500 * time.Millisecond)
+			for {
+				select {
+				case <-ctx.Done():
+					fmt.Println("Worker", id, "終了")
+					return
+
+				case <-ticker.C:
+					fmt.Println("Worker", id, "実行中")
+				}
 			}
-		}
-	}()
+		}(i)
+	}
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	cancel()
 	wg.Wait()
 
-	fmt.Println("Main 終了")
+	fmt.Println("Server Shutdown Complete")
 }
