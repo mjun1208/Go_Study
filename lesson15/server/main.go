@@ -39,7 +39,7 @@ func handleClient(conn net.Conn) {
 	for {
 		// header (ここではbody size情報)
 		header := make([]byte, 4)
-		// ReadFull : バッファを全部埋めるまえでRead反復
+		// ReadFull : バッファを全部埋めるまでRead反復
 		_, err := io.ReadFull(conn, header)
 		if err != nil {
 			return
@@ -62,5 +62,24 @@ func handleClient(conn net.Conn) {
 		}
 
 		fmt.Println("[Received]: ", string(body))
+
+		// Lesson16 Request/Response
+
+		response := append([]byte("[SERVER] "), body...)
+
+		responseHeader := make([]byte, 4)
+
+		binary.BigEndian.PutUint32(
+			responseHeader,
+			uint32(len(response)),
+		)
+
+		packet := append(responseHeader, response...)
+
+		_, err = conn.Write(packet)
+		if err != nil {
+			log.Println("Write Error:", err)
+			return
+		}
 	}
 }
