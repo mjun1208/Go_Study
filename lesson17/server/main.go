@@ -8,6 +8,14 @@ import (
 	"net"
 )
 
+type PacketHandler func([]byte) []byte
+
+var handlers = map[uint16]PacketHandler{
+	protocol.PacketLogin:  handleLogin,
+	protocol.PacketMove:   handleMove,
+	protocol.PacketAttack: handleAttack,
+}
+
 func main() {
 	listener, err := net.Listen("tcp", "127.0.0.1:7777")
 	if err != nil {
@@ -87,20 +95,13 @@ func handleClient(conn net.Conn) {
 }
 
 func dispatchPacket(packetID uint16, body []byte) []byte {
-	switch packetID {
-	case protocol.PacketLogin:
-		return handleLogin(body)
+	handler, ok := handlers[packetID]
 
-	case protocol.PacketMove:
-		return handleMove(body)
-
-	case protocol.PacketAttack:
-		return handleAttack(body)
-
-	default:
-		return []byte("Unknown Packet")
+	if !ok {
+		return []byte("Unkown Packet")
 	}
 
+	return handler(body)
 }
 
 func handleLogin(body []byte) []byte {
