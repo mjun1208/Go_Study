@@ -2,11 +2,14 @@ package main
 
 import (
 	"ServerClient/shared/protocol"
+	"bufio"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"log"
 	"net"
+	"os"
+	"strings"
 )
 
 func main() {
@@ -20,29 +23,36 @@ func main() {
 
 	log.Println("Connected to Server!")
 
-	err = sendPacket(conn, protocol.PacketLogin, "Hello")
-	if err != nil {
-		log.Println("Error:", err)
-		return
+	scanner := bufio.NewScanner(os.Stdin)
+
+	for {
+		fmt.Print("> ")
+
+		if !scanner.Scan() {
+			break
+		}
+
+		message := strings.TrimSpace(scanner.Text())
+
+		if message == "quit" {
+			break
+		}
+
+		if message == "" {
+			continue
+		}
+
+		err := sendPacket(conn, protocol.PacketMove, message)
+		if err != nil {
+			log.Println("Packet Error:", err)
+			break
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		log.Println("Input Error:", err)
 	}
 
-	err = sendPacket(conn, protocol.PacketLogin, "World")
-	if err != nil {
-		log.Println("Error:", err)
-		return
-	}
-
-	err = sendPacket(conn, protocol.PacketMove, "Move")
-	if err != nil {
-		log.Println("Error:", err)
-		return
-	}
-
-	err = sendPacket(conn, protocol.PacketAttack, "Attack")
-	if err != nil {
-		log.Println("Error:", err)
-		return
-	}
+	log.Println("Client Disconnected")
 }
 
 func sendPacket(conn net.Conn, packetID uint16, message string) error {

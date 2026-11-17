@@ -1,11 +1,14 @@
 package main
 
 import (
+	game "ServerClient/shared"
 	"ServerClient/shared/protocol"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"log"
 	"net"
+	"sync/atomic"
 )
 
 type PacketHandler func([]byte) []byte
@@ -17,6 +20,10 @@ var handlers = map[uint16]PacketHandler{
 }
 
 func main() {
+	var nextSessionID atomic.Int64
+
+	room := game.NewRoom()
+
 	listener, err := net.Listen("tcp", "127.0.0.1:7777")
 	if err != nil {
 		log.Fatal(err)
@@ -35,14 +42,22 @@ func main() {
 			continue
 		}
 
-		go handleClient(conn)
+		sessionID := nextSessionID.Add(1)
+
+		go handleClient(conn, room, sessionID)
 	}
 }
 
-func handleClient(conn net.Conn) {
-	defer conn.Close()
+func handleClient(conn net.Conn, room *game.Room, sessionID int64) {
+	room.Join(sessionID, fmt.Sprintf("Player%d", sessionID))
 
-	log.Println("Client Connected:", conn.RemoteAddr())
+	defer func() {
+		defer conn.Close()
+		defer room.Leave(sessionID)
+		defer log.Printf("Player%d DisConnected", sessionID)
+	}()
+
+	log.Printf("Player%d Connected (Room Count: %d)", sessionID, room.Count())
 
 	for {
 		// header
@@ -98,7 +113,7 @@ func dispatchPacket(packetID uint16, body []byte) []byte {
 	handler, ok := handlers[packetID]
 
 	if !ok {
-		return []byte("Unkown Packet")
+		return []byte("Unknown Packet")
 	}
 
 	return handler(body)
