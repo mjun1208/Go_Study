@@ -1,6 +1,7 @@
 package main
 
 import (
+	"ServerClient/shared/protocol"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -19,27 +20,27 @@ func main() {
 
 	log.Println("Connected to Server!")
 
-	err = sendPacket(conn, 1001, "Hello")
+	err = sendPacket(conn, protocol.PacketLogin, "Hello")
 	if err != nil {
-		log.Println("Write Error:", err)
+		log.Println("Error:", err)
 		return
 	}
 
-	err = sendPacket(conn, 1001, "World")
+	err = sendPacket(conn, protocol.PacketLogin, "World")
 	if err != nil {
-		log.Println("Write Error:", err)
+		log.Println("Error:", err)
 		return
 	}
 
-	err = sendPacket(conn, 1002, "Move")
+	err = sendPacket(conn, protocol.PacketMove, "Move")
 	if err != nil {
-		log.Println("Write Error:", err)
+		log.Println("Error:", err)
 		return
 	}
 
-	err = sendPacket(conn, 1003, "Attack")
+	err = sendPacket(conn, protocol.PacketAttack, "Attack")
 	if err != nil {
-		log.Println("Write Error:", err)
+		log.Println("Error:", err)
 		return
 	}
 }
@@ -47,9 +48,8 @@ func main() {
 func sendPacket(conn net.Conn, packetID uint16, message string) error {
 	body := []byte(message)
 
-	header := make([]byte, 6)
+	header := make([]byte, protocol.HeaderSize)
 	binary.BigEndian.PutUint32(header[0:4], uint32(len(body)))
-
 	binary.BigEndian.PutUint16(header[4:6], packetID)
 
 	packet := append(header, body...)
@@ -60,16 +60,13 @@ func sendPacket(conn net.Conn, packetID uint16, message string) error {
 		return fmt.Errorf("Write Error: %w", err)
 	}
 
-	fmt.Println("[Send]: ", string(body))
-
-	// Lesson16 Request/Response
 	err = receivePacket(conn)
 
 	return err
 }
 
 func receivePacket(conn net.Conn) error {
-	responseHeader := make([]byte, 4)
+	responseHeader := make([]byte, protocol.HeaderSize)
 
 	_, err := io.ReadFull(conn, responseHeader)
 	if err != nil {
@@ -79,7 +76,7 @@ func receivePacket(conn net.Conn) error {
 
 	size := binary.BigEndian.Uint32(responseHeader)
 
-	if size > 4096 {
+	if size > protocol.MaxBodySize {
 		return fmt.Errorf("Response Too Large: %d", size)
 	}
 

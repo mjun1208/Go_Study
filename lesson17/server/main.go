@@ -1,8 +1,8 @@
 package main
 
 import (
+	"ServerClient/shared/protocol"
 	"encoding/binary"
-	"fmt"
 	"io"
 	"log"
 	"net"
@@ -50,7 +50,7 @@ func handleClient(conn net.Conn) {
 		packetID := binary.BigEndian.Uint16(header[4:6])
 
 		// 検証
-		if size > 4096 {
+		if size > protocol.MaxBodySize {
 			return
 		}
 
@@ -62,29 +62,18 @@ func handleClient(conn net.Conn) {
 			return
 		}
 
-		switch packetID {
-		case 1001:
-			fmt.Println("[Login]:", string(body))
+		response := dispatchPacket(packetID, body)
 
-		case 1002:
-			fmt.Println("[Move]:", string(body))
-
-		case 1003:
-			fmt.Println("[Attack]:", string(body))
-
-		default:
-			fmt.Println("Unknown Packet ID:", packetID)
-		}
-
-		// fmt.Println("[Received]: ", string(body))
-
-		response := append([]byte("[SERVER] "), body...)
-
-		responseHeader := make([]byte, 4)
+		responseHeader := make([]byte, protocol.HeaderSize)
 
 		binary.BigEndian.PutUint32(
-			responseHeader,
+			responseHeader[0:4],
 			uint32(len(response)),
+		)
+
+		binary.BigEndian.PutUint16(
+			responseHeader[4:6],
+			packetID,
 		)
 
 		packet := append(responseHeader, response...)
@@ -95,4 +84,36 @@ func handleClient(conn net.Conn) {
 			return
 		}
 	}
+}
+
+func dispatchPacket(packetID uint16, body []byte) []byte {
+	switch packetID {
+	case protocol.PacketLogin:
+		return handleLogin(body)
+
+	case protocol.PacketMove:
+		return handleMove(body)
+
+	case protocol.PacketAttack:
+		return handleAttack(body)
+
+	default:
+		return []byte("Unknown Packet")
+	}
+
+}
+
+func handleLogin(body []byte) []byte {
+	log.Println("[Login]:", string(body))
+	return []byte("Login Success")
+}
+
+func handleMove(body []byte) []byte {
+	log.Println("[Move]:", string(body))
+	return []byte("Move Success")
+}
+
+func handleAttack(body []byte) []byte {
+	log.Println("[Attack]:", string(body))
+	return []byte("Attack Success")
 }
