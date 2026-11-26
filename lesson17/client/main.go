@@ -25,6 +25,8 @@ func main() {
 
 	scanner := bufio.NewScanner(os.Stdin)
 
+	go receiveLoop(conn)
+
 	for {
 		fmt.Print("> ")
 
@@ -70,8 +72,6 @@ func sendPacket(conn net.Conn, packetID uint16, message string) error {
 		return fmt.Errorf("Write Error: %w", err)
 	}
 
-	err = receivePacket(conn)
-
 	return err
 }
 
@@ -100,4 +100,40 @@ func receivePacket(conn net.Conn) error {
 	log.Println("[Received]:", string(responseBody))
 
 	return err
+}
+
+func receiveLoop(conn net.Conn) {
+	for {
+		header := make([]byte, protocol.HeaderSize)
+
+		_, err := io.ReadFull(conn, header)
+		if err != nil {
+			log.Println("Receive ended:", err)
+			return
+		}
+
+		size := binary.BigEndian.Uint32(header[0:4])
+		packetID := binary.BigEndian.Uint16(header[4:6])
+
+		if size > protocol.MaxBodySize {
+			log.Println("Invalid packet size:", size)
+			return
+		}
+
+		body := make([]byte, int(size))
+
+		_, err = io.ReadFull(conn, body)
+		if err != nil {
+			log.Println("Body Error:", err)
+			return
+		}
+
+		switch packetID {
+		case protocol.PacketMoveNotify:
+			log.Println("[Other Player Move]:", string(body))
+
+		default:
+			log.Println("[Response]:", string(body))
+		}
+	}
 }

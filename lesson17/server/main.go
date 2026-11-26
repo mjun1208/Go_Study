@@ -1,7 +1,6 @@
 package main
 
 import (
-	game "ServerClient/shared"
 	"ServerClient/shared/protocol"
 	"encoding/binary"
 	"fmt"
@@ -22,7 +21,7 @@ var handlers = map[uint16]PacketHandler{
 func main() {
 	var nextSessionID atomic.Int64
 
-	room := game.NewRoom()
+	room := NewRoom()
 
 	listener, err := net.Listen("tcp", "127.0.0.1:7777")
 	if err != nil {
@@ -48,13 +47,13 @@ func main() {
 	}
 }
 
-func handleClient(conn net.Conn, room *game.Room, sessionID int64) {
-	room.Join(sessionID, fmt.Sprintf("Player%d", sessionID))
+func handleClient(conn net.Conn, room *Room, sessionID int64) {
+	session := room.JoinWithConn(sessionID, conn)
 
 	defer func() {
-		defer conn.Close()
-		defer room.Leave(sessionID)
-		defer log.Printf("Player%d DisConnected", sessionID)
+		room.Leave(sessionID)
+		conn.Close()
+		log.Printf("Player%d DisConnected", sessionID)
 	}()
 
 	log.Printf("Player%d Connected (Room Count: %d)", sessionID, room.Count())
@@ -87,24 +86,16 @@ func handleClient(conn net.Conn, room *game.Room, sessionID int64) {
 
 		response := dispatchPacket(packetID, body)
 
-		responseHeader := make([]byte, protocol.HeaderSize)
-
-		binary.BigEndian.PutUint32(
-			responseHeader[0:4],
-			uint32(len(response)),
-		)
-
-		binary.BigEndian.PutUint16(
-			responseHeader[4:6],
-			packetID,
-		)
-
-		packet := append(responseHeader, response...)
-
-		_, err = conn.Write(packet)
+		err = session.Send(packetID, response)
 		if err != nil {
-			log.Println("Write Error:", err)
+			log.Println("Response Error:", err)
 			return
+		}
+
+		if packetID == protocol.PacketMove {
+			message := []byte(fmt.Sprintf("Session%d moved: %s", sessionID, body))
+
+			room.BroadcastExcept(sessionID, protocol.PacketMoveNotify, message)
 		}
 	}
 }
